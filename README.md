@@ -163,19 +163,16 @@ Connects ENSO to food security and commodity prices.
 ```
 DATA SOURCES (NOAA + FAO)
         ↓
-   Data Cleaning (Python)
-        ↓
 Data Transformation (NetCDF → CSV via xarray)
         ↓
+   Data Cleaning (SQL)
+        ↓
    SQL Database
-   (dim_date, dim_region, fact_enso_index, fact_sst_indices,
-    fact_climate, fact_food_price, fact_food_production,
-    fact_food_security_risk — see enso_schema.sql)
         ↓
   Statistical Analysis (Python, querying the database)
   (Correlation, Lag Analysis, Anomaly Detection)
-        ↓
-   Analytical Dataset / Views
+        ↓
+   Analytical Dataset / Views (SQL)
         ↓
   Power BI Dashboards
 ```
