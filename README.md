@@ -1,6 +1,8 @@
-# ENSO Project — Full Data Dump
+# ENSO Project — Global Climate & Food Security Analytics
 
-A single consolidated document covering the project idea, value proposition, dashboard plan, data sources, technical notes, and team structure.
+A single consolidated document covering the project idea, value proposition, dashboard plan, data sources (with their actual coverage), the FAOSTAT download specification, technical notes, and team structure.
+
+> **Revision note:** this version reflects the datasets already collected (ONI, NINO indices, FAO Food Price Index, GPCP precipitation extract) and the decisions taken on countries, crops and method.
 
 ---
 
@@ -8,7 +10,7 @@ A single consolidated document covering the project idea, value proposition, das
 
 **Project name:** ENSO — Global Climate & Food Security Analytics
 
-**What it is:** A professional data analytics project studying the El Niño–Southern Oscillation (ENSO) phenomenon and its downstream effects on global climate patterns and food security, built as a set of interactive dashboards backed by real NOAA and FAO data.
+**What it is:** A professional data analytics project studying the El Niño–Southern Oscillation (ENSO) phenomenon and its downstream effects on regional rainfall, crop yields and global food commodity prices, built as a set of interactive dashboards backed by real NOAA and FAO data.
 
 **ENSO = El Niño–Southern Oscillation**, a natural climate cycle driven by:
 - Sea surface temperature changes in the tropical Pacific
@@ -22,12 +24,18 @@ A single consolidated document covering the project idea, value proposition, das
 | La Niña | Unusual cooling of Pacific sea surface temperatures |
 | Neutral | Neither phase is active |
 
+**Classification rule (used everywhere in the project):**
+- ONI ≥ +0.5 for 5 consecutive overlapping 3-month seasons → El Niño
+- ONI ≤ −0.5 for 5 consecutive overlapping 3-month seasons → La Niña
+- Otherwise → Neutral
+- Intensity (peak ONI of the event): Weak 0.5–0.9 · Moderate 1.0–1.4 · Strong 1.5–1.9 · Very strong ≥ 2.0
+
 **Core research question:**
-> How does ENSO influence global temperature, precipitation, and food security, and which regions are most affected?
+> How does ENSO influence regional rainfall, crop yields and global food prices, and which countries and crops are most exposed?
 
 **Flow of the project:**
 ```
-ENSO Event → Climate Changes → Regional Impact → Food Security Impact → Insights
+ENSO Event → Rainfall Anomaly → Crop Yield Anomaly → Food Price Response → Insights
 ```
 
 ---
@@ -36,9 +44,10 @@ ENSO Event → Climate Changes → Regional Impact → Food Security Impact → 
 
 - **Real-world relevance**: ENSO affects agriculture, fisheries, energy markets, and global food commodity prices — this isn't an abstract academic exercise.
 - **Free, credible data**: Everything comes from official sources (NOAA, FAO), not scraped or unverified data.
-- **Broad skill demonstration**: time series analysis, data cleaning (including NetCDF handling), statistical analysis (correlation, lag analysis, anomaly detection), and dashboard/BI design.
-- **Strong narrative**: the project can tell a clear, causal-adjacent story — "when ENSO shifts, here's what happens to rainfall, temperature, and eventually food prices, in these specific regions."
-- **Forward-looking component**: unlike a purely historical analysis, the Prediction & Early Warning dashboard turns this into a decision-support tool, not just a retrospective report.
+- **Broad skill demonstration**: time series analysis, data cleaning (wide-to-long reshaping, NetCDF handling), statistical analysis (correlation, lag analysis, anomaly detection, detrending), and dashboard/BI design.
+- **Strong narrative**: "when ENSO shifts, here's what happens to rainfall, then yields, then prices, in these specific countries."
+- **A live case study**: the data currently shows a strong El Niño developing in 2026 (ONI = +1.8 for JJA 2026; Niño 3.4 anomaly +2.52 °C and Niño 1+2 anomaly +4.08 °C in Aug 2026). The Early Warning dashboard is therefore not purely historical — it tracks an event in progress.
+- **Honest statistics**: the project reports weak or mixed relationships as such (see Section 7), instead of forcing a causal story.
 
 ---
 
@@ -46,55 +55,60 @@ ENSO Event → Climate Changes → Regional Impact → Food Security Impact → 
 
 ### Dashboard 1 — ENSO Overview
 General view of the phenomenon over time.
-- ONI Index timeline (1950–present)
+- ONI timeline (1950–present)
 - KPI cards: number of El Niño/La Niña events, average duration, strongest historical event
 - Yearly classification chart (El Niño / La Niña / Neutral)
-- Intensity distribution (weak / moderate / strong)
+- Intensity distribution (weak / moderate / strong / very strong)
 
 **Data used:** ONI
 
 ---
 
-### Dashboard 2 — Global/Regional Climate Impact
-ENSO's effect on temperature and rainfall across selected regions (10–15 countries, not the entire globe).
-- Map view of selected regions
-- Temperature anomaly comparison across El Niño / La Niña / Neutral phases
-- Precipitation anomaly for the same regions
+### Dashboard 2 — Regional Climate Impact
+ENSO's effect on **rainfall** across the 14 selected countries.
+- Map view of the selected countries (agricultural-region reference points, see Section 5.2)
+- Precipitation anomaly comparison across El Niño / La Niña / Neutral phases
+- Sea-surface-temperature context from the four Niño regions
 
-**Data used:** ONI + GPCP
+**Data used:** ONI + Niño indices + GPCP
+
+> Temperature anomalies were removed from the original plan because no temperature dataset is part of the project. If time allows, a country-level temperature source (e.g. Berkeley Earth or ERA5) can be added as an optional extension.
 
 ---
 
 ### Dashboard 3 — Regional Deep Dive
-Detailed, user-selectable analysis for a single region.
-- Dropdown to pick a country/region
-- Comparative time series (actual values vs. baseline)
-- Correlation coefficient between ONI and the local climate variable
-- Lag analysis chart (does the effect show up after 1, 3, or 6 months?)
+Detailed, user-selectable analysis for a single country.
+- Dropdown to pick a country
+- Comparative time series (monthly precipitation vs. its monthly climatology)
+- Correlation coefficient between ONI and local precipitation anomaly
+- Lag analysis chart (does the effect show up after 0, 1, 3, or 6 months?) — **monthly data only**
 
-**Data used:** ONI + sstoi.indices + GPCP
+**Data used:** ONI + Niño indices + GPCP
 
 ---
 
-### Dashboard 4 — ENSO Prediction & Early Warning
-Shifts the project from "explaining the past" to "reading the near future." No machine learning required — built on trend detection and historical pattern matching.
-- Current ENSO status: latest available ONI value and classification
-- Trend indicator: is the index moving toward El Niño or La Niña over the last 3–6 months?
-- Historical analog: which past event does the current trajectory most resemble?
-- Risk outlook: which regions would likely be affected if the trend continues, based on historical patterns
+### Dashboard 4 — ENSO Trend & Early Warning
+Shifts the project from "explaining the past" to "reading the near future." No machine learning — built on trend detection and historical pattern matching. It is a **trend + analog view, not a forecast**.
+- Current ENSO status: latest ONI value and classification (JJA 2026: +1.8, strong El Niño conditions)
+- Trend indicator: direction of ONI over the last 3–6 months; Niño 1+2 / 3 / 3.4 / 4 anomalies for the latest month
+- Historical analog: the past year whose Jan–Aug ONI trajectory is closest (RMSE) to 2026 — currently **1997**, followed by 1957, 1965, 1972 and 2023
+- Risk outlook: which countries/crops were historically hit in comparable events (e.g. 1997, 2015, 2023) and would be watched if the trend continues
 
-**Data used:** ONI only
+**Data used:** ONI + Niño indices (+ yields from FAOSTAT for the risk outlook)
 
 ---
 
 ### Dashboard 5 — Climate & Food Security Impact
-Connects ENSO to food security and commodity prices.
+Connects ENSO to crop yields and food prices.
 - ENSO phase timeline as a reference layer at the top
-- Food price response around El Niño / La Niña periods
-- Regional food security risk score per country (precipitation anomaly + crop price change)
-- Lag correlation between ONI and food prices
+- Global food price response (FAO sub-indices) around El Niño / La Niña periods
+- Yield anomaly (detrended) by country and crop in El Niño vs. La Niña vs. Neutral years
+- Country food-security risk score = precipitation anomaly + yield anomaly (+ optional import exposure for Egypt)
+- Lag correlation between ONI and FAO price sub-indices (monthly)
 
-**Data used:** ONI + FAO Food Price Index + FAO Production Data
+**Data used:** ONI + GPCP + FAO Food Price Index + FAOSTAT QCL (crop production)
+
+> FAO price indices are **global**, not per country. The country-level risk score therefore uses rainfall and yield, and price enters as a global layer.
 
 ---
 
@@ -103,106 +117,188 @@ Connects ENSO to food security and commodity prices.
 | # | Dashboard | Focus | Data Sources |
 |---|---|---|---|
 | 1 | ENSO Overview | Phenomenon classification | ONI |
-| 2 | Global/Regional Impact | Climate | ONI + GPCP |
-| 3 | Regional Deep Dive | Detailed climate | ONI + sstoi.indices + GPCP |
-| 4 | Prediction & Early Warning | Forecasting | ONI |
-| 5 | Climate & Food Security | Food security | ONI + FAO Food Price Index + FAO Production |
+| 2 | Regional Climate Impact | Rainfall | ONI + Niño indices + GPCP |
+| 3 | Regional Deep Dive | Detailed rainfall response | ONI + Niño indices + GPCP |
+| 4 | Trend & Early Warning | Current event, analogs | ONI + Niño indices |
+| 5 | Climate & Food Security | Yields and prices | ONI + GPCP + FFPI + FAOSTAT QCL |
 
-**Architectural note:** ONI is the backbone across all five dashboards — it appears as a reference layer in every one, which gives the project strong internal consistency and makes the final presentation feel cohesive rather than like five unrelated charts.
+**Architectural note:** ONI is the backbone across all five dashboards — it appears as a reference layer in every one, which gives the project strong internal consistency.
 
 ---
 
 ## 5. Data Sources
 
-### 5.1 Core ENSO data
+### 5.1 Datasets collected so far (actual coverage)
 
-| Dataset | Source | Link | Notes |
+| Dataset | File | Coverage | Frequency | Notes |
+|---|---|---|---|---|
+| ONI | `ONI.xlsx` | 1950 → JJA 2026 | Monthly (3-month seasons) | Wide format (Year × DJF…NDJ); must be reshaped to long. Seasons after JJA 2026 are empty. |
+| Niño indices (1+2, 3, 4, 3.4) | `ENSO_NINO_data.xlsx` | 1982-01 → 2026-08 | Monthly | SST and anomaly for each region; no missing values. |
+| FAO Food Price Index | `ffpi-data-2026-09.xlsx` | 1990-01 → 2026-07 | Monthly + annual | Sub-indices: Meat, Dairy, Cereals, Oils, Sugar (2014–2016 = 100). Nominal and **Real** sheets. |
+| GPCP precipitation | `gpcp_monthly_precipitation.csv` | 2000-01 → 2026-06 | Monthly | 10 countries × 318 months, mm/day, nearest 2.5° grid point. |
+| FAOSTAT QCL | *to download* | 1982 → latest year (likely 2024) | **Annual** | See Section 6. |
+
+**Common analysis windows**
+- Monthly analysis (rainfall, prices, lags): **2000-01 → 2026-06**
+- Annual analysis (yields): **1982 → latest QCL year**; rainfall-linked annual analysis from 2000 (or from 1982 if GPCP is extended — see 5.2)
+
+**Original source links**
+
+| Dataset | Source | Link |
+|---|---|---|
+| ONI | NOAA CPC | https://www.cpc.ncep.noaa.gov/products/analysis_monitoring/enso/oni/v6/ |
+| ONI (alternate copy) | NOAA PSL | https://psl.noaa.gov/data/correlation/oni.data |
+| Niño indices | NOAA CPC | https://www.cpc.ncep.noaa.gov/data/indices/sstoi.indices |
+| GPCP Monthly Precipitation | NOAA/NCEI | https://www.ncei.noaa.gov/data/global-precipitation-climatology-project-gpcp-monthly/access/ |
+| FAO Food Price Index | FAO | https://www.fao.org/worldfoodsituation/foodpricesindex |
+| FAOSTAT Crops & Livestock (QCL) | FAO | https://www.fao.org/faostat/en/#data/QCL |
+
+**Reliability note:** treat CPC as authoritative for ONI; if the PSL copy is used, spot-check the latest values against CPC.
+
+### 5.2 Precipitation (GPCP) — decisions and technical notes
+
+- The extract currently covers 10 countries, one grid point each, located at the **country centroid**. Centroids are often not where crops grow, so reference points are revised as follows:
+
+| Country | Current point | Issue | Recommended reference |
 |---|---|---|---|
-| ONI (Oceanic Niño Index) | NOAA CPC | https://www.cpc.ncep.noaa.gov/products/analysis_monitoring/enso/oni/v6/ | Official source — 3-month running mean SST anomaly in the Niño 3.4 region. This is the project's foundation. |
-| ONI (alternate copy) | NOAA PSL | https://psl.noaa.gov/data/correlation/oni.data | Same data, plain text format, easy to parse with pandas |
-| SST Indices (Niño 1+2, 3, 3.4, 4) | NOAA CPC | https://www.cpc.ncep.noaa.gov/data/indices/sstoi.indices | Raw monthly SST + anomalies for all four Niño regions |
-| CPC Climate Indices index page | NOAA CPC | https://www.cpc.ncep.noaa.gov/data/indices/ | Directory of all CPC climate indices in one place |
-| PSL ENSO Data Hub | NOAA PSL | https://www.psl.noaa.gov/enso/data.html | Hub page linking to MEI, SOI, and comparison tools — optional, not core |
+| Egypt | 26.8, 30.8 | Desert, mean 0.026 mm/day — no usable ENSO rainfall signal | Treat Egypt as an **import-exposure** case; use Blue Nile / Ethiopian highlands rainfall (~11°N, 37°E) as its climate driver |
+| Australia | −25.3, 133.8 | Interior desert | Wheat belt: SW (~−32, 117) and SE (~−34, 147), averaged |
+| Brazil | −14.2, −51.9 | Not the main crop zone | Average of southern (~−28, −53) and central-west soy/maize belt (~−15, −55) |
+| South Africa | −30.6, 22.9 | Karoo, not the maize belt | Free State / Mpumalanga (~−28, 27) |
+| USA_Midwest | 41.9, −87.6 | Chicago | Corn belt, Iowa (~42, −93) |
+| India, Indonesia, Kenya, Peru, Vietnam | centroid | Acceptable; Peru additionally sensitive to coastal Niño 1+2 | Keep; optionally average a small box |
 
-**Reliability note:** minor value discrepancies can occur between the PSL copy and the CPC original due to update-timing differences. Treat CPC as authoritative; if using PSL, spot-check the latest values against CPC.
+- New countries (Argentina, Thailand, Malaysia, Philippines) need to be added to the GPCP extract.
+- **Extend GPCP back to 1982** (the dataset starts in 1979) so rainfall and yields share the same 1982→ window.
+- GPCP files use `latitude`/`longitude` dimension names and 0–360 longitudes. Convert negative longitudes with `lon + 360` before `.sel(..., method='nearest')`; combine monthly files with `xr.open_mfdataset()`. Always `print(ds)` first.
+- Use **v2.3 or later**; v2.2 is superseded.
 
-### 5.2 Climate data (precipitation, temperature)
+### 5.3 Food data
 
-| Dataset | Source | Link | Notes |
-|---|---|---|---|
-| GPCP Monthly Precipitation | NOAA/NCEI | https://www.ncei.noaa.gov/data/global-precipitation-climatology-project-gpcp-monthly/access/ | Global monthly precipitation, 1979–present, NetCDF format, 2.5° resolution. Use v2.3 or later — v2.2 is officially superseded. |
-| GPCC Precipitation (not used) | NOAA PSL | https://psl.noaa.gov/data/gridded/data.gpcc.html | Redundant alternative to GPCP — excluded to avoid duplicate effort |
-| PSL Gridded Surface Tables | NOAA PSL | https://psl.noaa.gov/data/gridded/tables/surface.html | General surface data tables — content needs confirmation before use |
-
-**Technical notes (confirmed by hands-on testing):**
-- Dimensions in the GPCP files are named `latitude`/`longitude`, not `lat`/`lon`.
-- Longitude uses a 0–360 system, not -180 to 180 — negative longitudes must be converted (`lon + 360` if negative) before using `.sel()`.
-- Reading requires the `xarray` library; use `.sel(..., method='nearest')` to pull the nearest grid point to a target coordinate.
-- Single monthly files can be combined into one time series using `xr.open_mfdataset()`.
-
-### 5.3 Food security data
-
-| Dataset | Source | Link | Notes |
-|---|---|---|---|
-| FAO Food Price Index | FAO | https://www.fao.org/worldfoodsituation/foodpricesindex | Monthly/annual index for 5 commodity groups (cereals, dairy, meat, oils, sugar), from 1990, downloadable as Excel |
-| FAOSTAT Production Data | FAO | https://data.fao.org/catalog/dataset/d24a448b-3b62-4c09-8c1d-4a39bb599876 | Crop production by country/year — exact resource content still needs final confirmation |
-| FAO Agriculture data collection | FAO | https://www.fao.org/statistics/data-collection/agriculture/ | General landing page for agricultural statistics |
+| Dataset | Used for | Notes |
+|---|---|---|
+| FAO Food Price Index (monthly, **Real** sheet preferred) | Global price response, lag correlation with ONI | Global, not per country. Use the Real (inflation-adjusted) sheet for cross-period comparison. |
+| FAOSTAT QCL | Yield, area harvested, production by country and crop | **Annual** only — see Section 6. |
 
 ### 5.4 Sources deliberately excluded
 
 | Source | Reason |
 |---|---|
 | GPCC | Redundant with GPCP |
-| MEI / SOI | Optional only — useful for cross-validating ONI, not essential to the core plan |
-| PSL Gridded Surface Tables | Content unclear, needs confirmation before adoption |
+| MEI / SOI | Optional only — cross-validation of ONI |
+| PSL Gridded Surface Tables | Content unclear |
+| Coffee, cocoa, cotton (QCL) | No matching price series in the FFPI; add later only with another price source (e.g. World Bank Pink Sheet) |
+| Fish / fishmeal (Peru) | Not covered by QCL |
 
 ---
 
-## 6. Proposed Technical Architecture
+## 6. FAOSTAT QCL Download Specification (one file)
+
+Download **one** CSV from https://www.fao.org/faostat/en/#data/QCL with the selections below.
+
+**Countries (14):**
+Argentina, Australia, Brazil, Egypt, India, Indonesia, Kenya, Malaysia, Peru, Philippines, South Africa, Thailand, United States of America, Viet Nam
+
+(The first 10 match the GPCP extract — USA appears as the whole country in FAOSTAT and is analysed through the Midwest/corn-belt rainfall point. Argentina, Malaysia, Thailand and the Philippines are the additions.)
+
+**Items (crops):**
+
+| FFPI group | Item | Approx. item code* | Main countries |
+|---|---|---|---|
+| Cereals | Wheat | 15 | Australia, India, USA, Argentina, Egypt |
+| Cereals | Rice | 27 | India, Indonesia, Vietnam, Thailand, Philippines, Egypt |
+| Cereals | Maize (corn) | 56 | USA, Brazil, Argentina, South Africa, Kenya |
+| Oils | Soya beans | 236 | Brazil, USA, Argentina |
+| Oils | Oil palm fruit (and/or Palm oil) | 254 / 257 | Indonesia, Malaysia |
+| Sugar | Sugar cane | 156 | Brazil, India, Thailand, Australia |
+| Meat / Dairy (optional) | Meat of cattle (867), Raw milk of cattle (882) | 867 / 882 | Australia, Brazil, USA, India |
+
+\*Codes are from memory of the FAOSTAT scheme — verify them in the item selector before downloading.
+
+**Elements:** Production, Area harvested, Yield
+
+**Years:** 1982 → latest available (select all)
+
+**Output:** CSV, long format, with codes and flags included.
+
+**Method notes for this dataset**
+1. Analyse **Yield**, not raw Production (production is confounded by area changes and technology).
+2. **Detrend** each country-crop yield series (e.g. linear or LOESS trend) and work with the anomaly (% deviation from trend).
+3. Map ENSO to the crop's growing season (e.g. OND–JFM mean ONI for southern-hemisphere summer crops) rather than to the calendar year.
+4. With ~40 annual points per series, compare yield anomalies across **El Niño / La Niña / Neutral years** instead of relying on correlation alone.
+5. QCL is annual: **no monthly lag analysis on yields.** Monthly lags are for rainfall and FAO price indices only.
+
+---
+
+## 7. Known Statistical Expectations
+
+A first pass on the collected data (monthly, 1990–2026, year-over-year change of the Real FAO sub-indices vs. ONI lagged 0–12 months) shows **weak relationships** — absolute correlations below ~0.4:
+
+| Sub-index | Strongest pattern |
+|---|---|
+| Oils | Rises with ONI lag: r ≈ +0.03 (0 m) → +0.18 (6 m) → **+0.38 (12 m)** — consistent with El Niño-driven palm yield losses appearing after ~1 year |
+| Cereals | Slightly negative at short lags (≈ −0.29 at 0 m) |
+| Sugar, Meat, Dairy | Weak or inconsistent |
+
+The project should present these as "partial, lagged, commodity-specific" effects, not as ENSO driving all food prices.
+
+---
+
+## 8. Proposed Technical Architecture
 
 ```
 DATA SOURCES (NOAA + FAO)
         ↓
-Data Transformation (NetCDF → CSV via xarray)
+   Data Cleaning (Python)
         ↓
-   Data Cleaning (SQL)
+Data Transformation (wide→long, NetCDF → CSV via xarray)
         ↓
    SQL Database
+   (dim_date, dim_region, dim_crop, fact_enso_index, fact_sst_indices,
+    fact_climate, fact_food_price, fact_food_production,
+    fact_food_security_risk — see enso_schema.sql)
         ↓
   Statistical Analysis (Python, querying the database)
-  (Correlation, Lag Analysis, Anomaly Detection)
-        ↓
-   Analytical Dataset / Views (SQL)
+  (Correlation, Lag Analysis, Anomaly Detection, Detrending, Analog matching)
+        ↓
+   Analytical Dataset / Views
         ↓
   Power BI Dashboards
 ```
 
-**Toolchain used, end to end:**
-1. **Python** — pulls and cleans the raw sources (ONI, sstoi.indices, GPCP NetCDF via `xarray`, FAO Food Price Index, FAOSTAT production), and loads the cleaned tables into the SQL database.
-2. **SQL** — the data lives in a proper relational database (schema in `enso_schema.sql`), not scattered CSVs. All five dashboards query this database rather than reading files directly, which keeps the data consistent and makes it easy to add new regions or refresh months without re-touching every dashboard.
-3. **Python** (again) — runs the statistical analysis on top of the database (correlation, lag analysis, the trend/analog logic for Dashboard 4, and the risk score calculation for Dashboard 5), and writes results back into the database or into analytical views.
-4. **Power BI** — connects directly to the SQL database (or to the analytical views/exports) to build and present the final five dashboards.
+**Toolchain, end to end:**
+1. **Python** — pulls and cleans the raw sources and loads cleaned tables into the SQL database.
+2. **SQL** — all five dashboards query the database rather than reading files directly.
+3. **Python** (again) — statistical analysis on top of the database; writes results back as tables/views.
+4. **Power BI** — connects to the SQL database (or analytical views/exports).
+
+**Cleaning checklist**
+- **ONI:** melt wide → long; map each season to its center month (DJF → Jan, JFM → Feb … NDJ → Dec); leave unreleased seasons as NaN.
+- **FFPI:** headers start at row 5 of the sheets (title rows + blank row); drop trailing empty rows (e.g. the empty 2026-08 row); use `Indices_Monthly_Real` for comparisons over time.
+- **Niño:** combine `YR` + `MON` into a date; keep both raw SST and anomaly.
+- **GPCP:** unify country names with FAOSTAT (e.g. "Viet Nam" vs "Vietnam", "United States of America" vs "USA_Midwest").
+- **QCL:** keep only element codes for Production/Area/Yield; drop flagged-as-imputed rows only if sensitivity tests show they matter.
 
 **Key lessons carried into this architecture:**
-1. NetCDF dimension names differ by source — always inspect the dataset (`print(ds)`) before writing extraction code.
-2. Longitude convention (0–360 vs. -180–180) must be checked and normalized per source.
-3. Stick to one dataset per data type to avoid redundant cleaning work (e.g., GPCP only, not GPCP + GPCC).
-4. Start with the simplest working version — a handful of countries and one solid dashboard — before scaling up to more regions or more dashboards.
+1. NetCDF dimension names differ by source — always inspect the dataset before writing extraction code.
+2. Longitude convention (0–360 vs. −180–180) must be normalised per source.
+3. One dataset per data type to avoid redundant cleaning (GPCP only, not GPCP + GPCC).
+4. Start with the simplest working version — a handful of countries and one solid dashboard — before scaling.
 
 ---
 
-## 7. Team Structure (6 people)
+## 9. Team Structure (6 people)
 
 | Task | People | Description |
 |---|---|---|
-| Data collection + cleaning + ETL | 2 | Pulling ONI, GPCP, and FAO data; converting NetCDF to CSV; handling missing values and format mismatches |
-| Statistical analysis | 1 | Correlation, lag analysis, anomaly detection, trend/analog logic for Dashboard 4 |
-| Dashboard building | 2 | Building the 5 dashboards in Power BI or Python (Streamlit/Plotly) |
-| Documentation + presentation + QA | 1 | README, final report, slide deck, testing dashboard accuracy against source data |
+| Data collection + cleaning + ETL | 2 | ONI, Niño, GPCP (extended to 1982 + new countries), FFPI and QCL; reshaping; missing values and format mismatches |
+| Statistical analysis | 1 | Detrending, anomalies, correlation, lag analysis, analog logic for Dashboard 4, risk score |
+| Dashboard building | 2 | Building the 5 dashboards in Power BI |
+| Documentation + presentation + QA | 1 | README, final report, slide deck, testing dashboard numbers against source data |
 
 ---
 
-## 8. Tools & Libraries
+## 10. Tools & Libraries
 
 | Tool | Purpose |
 |---|---|
@@ -210,16 +306,19 @@ Data Transformation (NetCDF → CSV via xarray)
 | `netCDF4` | Low-level NetCDF support (used internally by xarray) |
 | `pandas` | Tabular data cleaning, merging, and analysis |
 | `scipy.stats` | Correlation coefficients and lag analysis |
-| SQL database (PostgreSQL or similar) | Central storage for all cleaned data — schema defined in `enso_schema.sql` |
-| `SQLAlchemy` / `psycopg2` | Loading cleaned pandas DataFrames into the SQL database from Python |
-| Power BI | Final dashboard building, connected directly to the SQL database |
+| `statsmodels` | Detrending (LOESS / linear) and regression checks |
+| SQL database (PostgreSQL or similar) | Central storage for all cleaned data — schema in `enso_schema.sql` |
+| `SQLAlchemy` / `psycopg2` | Loading cleaned DataFrames into the SQL database |
+| Power BI | Final dashboards, connected to the SQL database |
 
 **Final toolchain: Python (collection + cleaning + analysis) → SQL database (storage) → Power BI (dashboards).**
 
 ---
 
-## 9. Open Items / Still To Confirm
+## 11. Open Items / Still To Confirm
 
-- Exact contents of the `data.fao.org` production dataset resource (crop type coverage, country coverage, years).
-- Final list of 10–15 regions/countries to use consistently across Dashboards 2, 3, and 5.
+- Verify FAOSTAT item codes and the last available year in QCL (likely 2024).
+- Add Argentina, Thailand, Malaysia, Philippines (and the revised reference points) to the GPCP extract; extend GPCP to 1982.
+- Decide whether to add a temperature source (Berkeley Earth / ERA5) or leave Dashboard 2 rainfall-only.
+- Decide whether the optional Meat/Dairy items (cattle meat, raw milk) are included.
 - Whether MEI/SOI get added as an optional cross-validation layer on Dashboard 1, time permitting.
