@@ -1,1 +1,10 @@
-Production_Crops_Livestock_E_All_Data_(Normalized)/
+# FAOSTAT bulk files (~515 MB, re-created by data/collect_data.py)
+data/Production_Crops_Livestock_E_All_Data_(Normalized)/
+ 
+# download leftovers
+*.part
+ 
+# python
+.venv/
+__pycache__/
+*.pyc

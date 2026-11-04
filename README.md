@@ -1,8 +1,8 @@
 # ENSO Project — Global Climate & Food Security Analytics
 
-A single consolidated document covering the project idea, value proposition, dashboard plan, data sources (with their actual coverage), the FAOSTAT download specification, technical notes, and team structure.
+A single consolidated document covering the project idea, value proposition, dashboard plan, repository structure, how to run the data collection, data sources (with their actual coverage), the FAOSTAT specification, technical notes, and team structure.
 
-> **Revision note:** this version reflects the datasets already collected (ONI, NINO indices, FAO Food Price Index, GPCP precipitation extract) and the decisions taken on countries, crops and method.
+> **Revision note:** this version reflects the datasets already collected (ONI/Niño 3.4 events file, Niño indices, FAO Food Price Index, GPCP precipitation extract, FAOSTAT bulk files) and the decisions taken on countries, crops and method. All of them except the HDX events file (downloaded by hand from HDX) can be re-created automatically with `data/collect_data.py` (Section 4.2).
 
 ---
 
@@ -124,6 +124,77 @@ Connects ENSO to crop yields and food prices.
 
 **Architectural note:** ONI is the backbone across all five dashboards — it appears as a reference layer in every one, which gives the project strong internal consistency.
 
+### 4.1 Repository Structure
+
+```
+NHA-5-112/
+├── README.md
+├── requirements.txt
+├── .gitignore
+├── dashboards/                       # Power BI files
+├── data/
+│   ├── collect_data.py               # re-creates the data files below, except the HDX file (Section 4.2)
+│   ├── el-nino-southern-oscillation-enso-el-nino-and-la-nina-events(HDX).csv   # downloaded by hand from HDX
+│   ├── ENSO_NINO_data.xlsx           # sheet NINO_Data
+│   ├── ffpi-data-YYYY-MM.xlsx        # YYYY-MM = month of download
+│   ├── gpcp_monthly_precipitation.csv
+│   └── Production_Crops_Livestock_E_All_Data_(Normalized)/   # git-ignored, ~515 MB
+│       ├── Production_Crops_Livestock_E_All_Data_(Normalized).csv
+│       ├── Production_Crops_Livestock_E_AreaCodes.csv
+│       ├── Production_Crops_Livestock_E_Elements.csv
+│       ├── Production_Crops_Livestock_E_Flags.csv
+│       └── Production_Crops_Livestock_E_ItemCodes.csv
+├── docs/
+│   └── Gemini_Generated_Image_gb5f4cgb5f4cgb5f.jpeg
+├── notebooks/                        # statistical analysis (detrending, lags, analogs)
+└── sql/                              # database schema and views (enso_schema.sql to be added)
+```
+
+The FAOSTAT folder is listed in `.gitignore`: the main file is far above GitHub's 100 MB limit, so it is downloaded by the script on each machine instead of being committed.
+
+### 4.2 Running the Data Collection
+
+Create a virtual environment once (Python 3.12 recommended; the versions in `requirements.txt` were tested on it):
+
+```powershell
+# Windows PowerShell, from the repository root
+python -m venv .venv
+.venv\Scripts\Activate.ps1        # if blocked: Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+```bash
+# macOS / Linux
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+The prompt shows `(.venv)` while the environment is active; leave it with `deactivate`. Then run:
+
+```bash
+python data/collect_data.py                     # everything
+python data/collect_data.py --only nino gpcp    # selected sources: nino, ffpi, gpcp, faostat
+python data/collect_data.py --force             # ignore the freshness checks
+python data/collect_data.py --only ffpi --ffpi-file path/to/file.xlsx   # use a file you downloaded by hand
+```
+
+The script writes the files into the `data/` folder, with the names shown in 4.1 (it can be started from any folder). A failure in one source does not stop the others; a summary is printed at the end.
+
+| Source | File written | Downloaded from | Refreshed |
+|---|---|---|---|
+| `nino` | `ENSO_NINO_data.xlsx` | NOAA CPC `sstoi.indices` | every run |
+| `ffpi` | `ffpi-data-YYYY-MM.xlsx` | FAO Food Price Index page (link is found automatically) | if older than 1 day |
+| `gpcp` | `gpcp_monthly_precipitation.csv` | NOAA PSL GPCP v2.3 NetCDF | every run |
+| `faostat` | `Production_Crops_Livestock_E_All_Data_(Normalized)/` | FAOSTAT bulk zip, unpacked as is | if older than 90 days |
+
+Notes:
+- The HDX events file is **not** produced by the script; download it from HDX when it needs updating (link in Section 5.1).
+- The GPCP file keeps the current layout: 10 countries, 2000-01 onward, the same reference points and country names (`USA_Midwest`, `South_Africa`, `Vietnam`). To change the points or the start date, edit `GPCP_POINTS` and `GPCP_START` at the top of the script.
+- The FFPI file name uses the download month. Files from earlier months stay in the folder; delete old copies by hand.
+- NOAA revises recent values, so a new run can differ slightly from the committed files in the latest months.
+
 ---
 
 ## 5. Data Sources
@@ -132,11 +203,11 @@ Connects ENSO to crop yields and food prices.
 
 | Dataset | File | Coverage | Frequency | Notes |
 |---|---|---|---|---|
-| ONI | `ONI.xlsx` | 1950 → JJA 2026 | Monthly (3-month seasons) | Wide format (Year × DJF…NDJ); must be reshaped to long. Seasons after JJA 2026 are empty. |
+| ONI / Niño 3.4 events | `el-nino-southern-oscillation-enso-el-nino-and-la-nina-events(HDX).csv` | 1950-01 → 2026-06 | Monthly | Long format: Niño 3.4 SST, climatology and anomaly, plus a 3-month mean, rounded value and two phase columns (`phase_trimester`, `phase_event`). The 3-month mean is **forward-looking**: a month's row holds the mean of that month and the next two (the January row is JFM). The last two months have no 3-month mean and are labelled `neutral`. |
 | Niño indices (1+2, 3, 4, 3.4) | `ENSO_NINO_data.xlsx` | 1982-01 → 2026-08 | Monthly | SST and anomaly for each region; no missing values. |
-| FAO Food Price Index | `ffpi-data-2026-09.xlsx` | 1990-01 → 2026-07 | Monthly + annual | Sub-indices: Meat, Dairy, Cereals, Oils, Sugar (2014–2016 = 100). Nominal and **Real** sheets. |
+| FAO Food Price Index | `ffpi-data-YYYY-MM.xlsx` (e.g. `ffpi-data-2026-09.xlsx`) | 1990-01 → 2026-08 | Monthly + annual | Sub-indices: Meat, Dairy, Cereals, Oils, Sugar (2014–2016 = 100). Nominal and **Real** sheets. |
 | GPCP precipitation | `gpcp_monthly_precipitation.csv` | 2000-01 → 2026-06 | Monthly | 10 countries × 318 months, mm/day, nearest 2.5° grid point. |
-| FAOSTAT QCL | *to download* | 1982 → latest year (likely 2024) | **Annual** | See Section 6. |
+| FAOSTAT QCL | `Production_Crops_Livestock_E_All_Data_(Normalized)/` (5 CSVs) | 1961 → latest year in the file; the project uses 1982 → | **Annual** | Full bulk file, not filtered. See Section 6. |
 
 **Common analysis windows**
 - Monthly analysis (rainfall, prices, lags): **2000-01 → 2026-06**
@@ -148,12 +219,17 @@ Connects ENSO to crop yields and food prices.
 |---|---|---|
 | ONI | NOAA CPC | https://www.cpc.ncep.noaa.gov/products/analysis_monitoring/enso/oni/v6/ |
 | ONI (alternate copy) | NOAA PSL | https://psl.noaa.gov/data/correlation/oni.data |
+| ONI / Niño 3.4 events file (the committed copy, downloaded by hand) | HDX | https://data.humdata.org/dataset/el-nino-southern-oscillation-enso-el-nino-and-la-nina-events |
 | Niño indices | NOAA CPC | https://www.cpc.ncep.noaa.gov/data/indices/sstoi.indices |
 | GPCP Monthly Precipitation | NOAA/NCEI | https://www.ncei.noaa.gov/data/global-precipitation-climatology-project-gpcp-monthly/access/ |
+| GPCP v2.3 as one NetCDF file (the script downloads this) | NOAA PSL | https://psl.noaa.gov/thredds/fileServer/Datasets/gpcp/precip.mon.mean.nc |
 | FAO Food Price Index | FAO | https://www.fao.org/worldfoodsituation/foodpricesindex |
 | FAOSTAT Crops & Livestock (QCL) | FAO | https://www.fao.org/faostat/en/#data/QCL |
+| FAOSTAT QCL bulk file (the script downloads this) | FAO | https://bulks-faostat.fao.org/production/Production_Crops_Livestock_E_All_Data_(Normalized).zip |
 
 **Reliability note:** treat CPC as authoritative for ONI; if the PSL copy is used, spot-check the latest values against CPC.
+
+**ONI vs RONI:** NOAA CPC has introduced the Relative ONI (RONI) as its operational index in 2026. This project keeps the traditional ONI-style classification because the rule in Section 1 is defined on it and it matches the literature. RONI can differ materially from ONI when the whole tropical ocean is warming, so the two must never be mixed in one analysis. Mention RONI in the final report as a limitation.
 
 ### 5.2 Precipitation (GPCP) — decisions and technical notes
 
@@ -168,9 +244,9 @@ Connects ENSO to crop yields and food prices.
 | USA_Midwest | 41.9, −87.6 | Chicago | Corn belt, Iowa (~42, −93) |
 | India, Indonesia, Kenya, Peru, Vietnam | centroid | Acceptable; Peru additionally sensitive to coastal Niño 1+2 | Keep; optionally average a small box |
 
-- New countries (Argentina, Thailand, Malaysia, Philippines) need to be added to the GPCP extract.
-- **Extend GPCP back to 1982** (the dataset starts in 1979) so rainfall and yields share the same 1982→ window.
-- GPCP files use `latitude`/`longitude` dimension names and 0–360 longitudes. Convert negative longitudes with `lon + 360` before `.sel(..., method='nearest')`; combine monthly files with `xr.open_mfdataset()`. Always `print(ds)` first.
+- New countries (Argentina, Thailand, Malaysia, Philippines) still need to be added to the GPCP extract (**not done yet**; the script currently re-creates the existing 10-country file).
+- **Extend GPCP back to 1982** (the dataset starts in 1979) so rainfall and yields share the same 1982→ window (**not done yet**; change `GPCP_START` in `data/collect_data.py`).
+- GPCP grids use 0–360 longitudes. Convert negative longitudes with `lon + 360` before `.sel(..., method='nearest')`. The script reads one NetCDF file from NOAA PSL and detects the dimension names itself (`lat`/`lon` or `latitude`/`longitude`); with the monthly NCEI files, combine them with `xr.open_mfdataset()`. Always `print(ds)` first.
 - Use **v2.3 or later**; v2.2 is superseded.
 
 ### 5.3 Food data
@@ -194,7 +270,7 @@ Connects ENSO to crop yields and food prices.
 
 ## 6. FAOSTAT QCL Download Specification (one file)
 
-Download **one** CSV from https://www.fao.org/faostat/en/#data/QCL with the selections below.
+`data/collect_data.py` downloads the full QCL bulk file and unpacks it into `data/Production_Crops_Livestock_E_All_Data_(Normalized)/`; filter it to the selections below in pandas or SQL. To get a pre-filtered CSV instead, download **one** CSV from https://www.fao.org/faostat/en/#data/QCL with the same selections.
 
 **Countries (14):**
 Argentina, Australia, Brazil, Egypt, India, Indonesia, Kenya, Malaysia, Peru, Philippines, South Africa, Thailand, United States of America, Viet Nam
@@ -273,8 +349,8 @@ Data Transformation (wide→long, NetCDF → CSV via xarray)
 4. **Power BI** — connects to the SQL database (or analytical views/exports).
 
 **Cleaning checklist**
-- **ONI:** melt wide → long; map each season to its center month (DJF → Jan, JFM → Feb … NDJ → Dec); leave unreleased seasons as NaN.
-- **FFPI:** headers start at row 5 of the sheets (title rows + blank row); drop trailing empty rows (e.g. the empty 2026-08 row); use `Indices_Monthly_Real` for comparisons over time.
+- **ONI file:** already long and monthly. The 3-month mean is labelled with the season's **first** month, so shift `date` by one month (or label it with the centre month) before joining with monthly rainfall or prices. Treat the last two rows (no 3-month mean) as unknown, not as `neutral`.
+- **FFPI:** headers start at row 5 of the sheets (title rows + blank row); drop trailing empty rows if any (the current file has values up to 2026-08); use `Indices_Monthly_Real` for comparisons over time.
 - **Niño:** combine `YR` + `MON` into a date; keep both raw SST and anomaly.
 - **GPCP:** unify country names with FAOSTAT (e.g. "Viet Nam" vs "Vietnam", "United States of America" vs "USA_Midwest").
 - **QCL:** keep only element codes for Production/Area/Yield; drop flagged-as-imputed rows only if sensitivity tests show they matter.
@@ -284,6 +360,7 @@ Data Transformation (wide→long, NetCDF → CSV via xarray)
 2. Longitude convention (0–360 vs. −180–180) must be normalised per source.
 3. One dataset per data type to avoid redundant cleaning (GPCP only, not GPCP + GPCC).
 4. Start with the simplest working version — a handful of countries and one solid dashboard — before scaling.
+5. Never commit raw files above GitHub's 100 MB limit (the FAOSTAT main file is ~515 MB). Keep them in `.gitignore` and re-create them with `data/collect_data.py`; a push that contains such a file in any earlier commit is rejected.
 
 ---
 
@@ -305,6 +382,7 @@ Data Transformation (wide→long, NetCDF → CSV via xarray)
 | `xarray` | Reading and processing NetCDF climate files |
 | `netCDF4` | Low-level NetCDF support (used internally by xarray) |
 | `pandas` | Tabular data cleaning, merging, and analysis |
+| `requests`, `openpyxl`, `netCDF4` | Downloading the sources, reading/writing Excel files, reading NetCDF |
 | `scipy.stats` | Correlation coefficients and lag analysis |
 | `statsmodels` | Detrending (LOESS / linear) and regression checks |
 | SQL database (PostgreSQL or similar) | Central storage for all cleaned data — schema in `enso_schema.sql` |
@@ -317,7 +395,9 @@ Data Transformation (wide→long, NetCDF → CSV via xarray)
 
 ## 11. Open Items / Still To Confirm
 
+- Run `data/collect_data.py` once against the live sources and fix anything that breaks (it was tested on local data and synthetic files, not on the live sites).
 - Verify FAOSTAT item codes and the last available year in QCL (likely 2024).
+- Add `sql/enso_schema.sql` to the repository (referenced in Section 8 but not yet committed).
 - Add Argentina, Thailand, Malaysia, Philippines (and the revised reference points) to the GPCP extract; extend GPCP to 1982.
 - Decide whether to add a temperature source (Berkeley Earth / ERA5) or leave Dashboard 2 rainfall-only.
 - Decide whether the optional Meat/Dairy items (cattle meat, raw milk) are included.
