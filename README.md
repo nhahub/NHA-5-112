@@ -3,6 +3,8 @@
 A single consolidated document covering the project idea, value proposition, dashboard plan, repository structure, how to run the data collection, data sources (with their actual coverage), the FAOSTAT specification, technical notes, and team structure.
 
 > **Revision note:** this version reflects the datasets already collected (ONI/Niño 3.4 events file, Niño indices, FAO Food Price Index, GPCP precipitation extract, FAOSTAT bulk files) and the decisions taken on countries, crops and method. All of them except the HDX events file (downloaded by hand from HDX) can be re-created automatically with `data/collect_data.py` (Section 4.2).
+>
+> **Workflow update:** Python and Jupyter are now used **only** to collect the raw files, explore them, and shrink them by converting to **Parquet** (Section 4.3). Everything after that — cleaning, data types, normalization and all analysis — is written in **SQL, run on the remote server through dbt** (Section 4.4).
 
 ---
 
@@ -133,11 +135,12 @@ NHA-5-112/
 ├── .gitignore
 ├── dashboards/                       # Power BI files
 ├── data/
-│   ├── collect_data.py               # re-creates the data files below, except the HDX file (Section 4.2)
-│   ├── el-nino-southern-oscillation-enso-el-nino-and-la-nina-events(HDX).csv   # downloaded by hand from HDX
+│   ├── collect_data.py               # re-creates the raw files below, except the HDX file (Section 4.2)
+│   ├── el-nino-southern-oscillation-enso-el-nino-and-la-nina-events.csv   # downloaded by hand from HDX
 │   ├── ENSO_NINO_data.xlsx           # sheet NINO_Data
 │   ├── ffpi-data-YYYY-MM.xlsx        # YYYY-MM = month of download
 │   ├── gpcp_monthly_precipitation.csv
+│   ├── parquet/                      # Parquet copies of the raw files, written by the notebooks (Section 4.3)
 │   └── Production_Crops_Livestock_E_All_Data_(Normalized)/   # git-ignored, ~515 MB
 │       ├── Production_Crops_Livestock_E_All_Data_(Normalized).csv
 │       ├── Production_Crops_Livestock_E_AreaCodes.csv
@@ -146,8 +149,8 @@ NHA-5-112/
 │       └── Production_Crops_Livestock_E_ItemCodes.csv
 ├── docs/
 │   └── Gemini_Generated_Image_gb5f4cgb5f4cgb5f.jpeg
-├── notebooks/                        # statistical analysis (detrending, lags, analogs)
-└── sql/                              # database schema and views (enso_schema.sql to be added)
+├── notebooks/                        # Jupyter: exploration of the raw files + CSV → Parquet conversion ONLY
+└── dbt/                              # dbt project: all cleaning, typing, normalization and analysis, in SQL (Section 4.4)
 ```
 
 The FAOSTAT folder is listed in `.gitignore`: the main file is far above GitHub's 100 MB limit, so it is downloaded by the script on each machine instead of being committed.
@@ -194,6 +197,68 @@ Notes:
 - The GPCP file keeps the current layout: 10 countries, 2000-01 onward, the same reference points and country names (`USA_Midwest`, `South_Africa`, `Vietnam`). To change the points or the start date, edit `GPCP_POINTS` and `GPCP_START` at the top of the script.
 - The FFPI file name uses the download month. Files from earlier months stay in the folder; delete old copies by hand.
 - NOAA revises recent values, so a new run can differ slightly from the committed files in the latest months.
+
+### 4.3 Exploration Notebooks and Parquet Conversion
+
+Jupyter notebooks (`notebooks/`) have **one job**: look at a raw source and make it smaller. One notebook per source, e.g. `01_explore_faostat_qcl.ipynb`.
+
+**A notebook does:**
+- Load the raw file and inspect it: shape, columns, dtypes as read, null counts, distinct values, value ranges, duplicates.
+- Record what it finds (odd values, codes to keep, name mismatches, flags) as short notes in the notebook. These notes become rules in the dbt models and tests — they are not applied in the notebook.
+- Convert the raw file to **Parquet** to cut its size (mandatory for the ~515 MB FAOSTAT QCL file; optional for the small files).
+
+**A notebook does not:** clean, cast or fix data types, rename columns, normalize, join sources, or run any analysis (anomalies, correlation, lags, analogs, charts for the final result). All of that is SQL in dbt (Section 4.4).
+
+**Parquet rule:** the conversion is a straight copy. Read every column as text so no value is changed, then write compressed Parquet; the real data types are set later, in the dbt staging models. Convert in chunks so the big file never has to fit in memory:
+
+```python
+import pandas as pd
+import pyarrow as pa
+import pyarrow.parquet as pq
+
+SRC = "data/Production_Crops_Livestock_E_All_Data_(Normalized)/Production_Crops_Livestock_E_All_Data_(Normalized).csv"
+DST = "data/parquet/faostat_qcl_raw.parquet"
+
+writer = None
+for chunk in pd.read_csv(SRC, dtype=str, keep_default_na=False,
+                         encoding="latin-1",     # FAOSTAT bulk files have historically been Latin-1; confirm in the notebook
+                         chunksize=500_000):
+    table = pa.Table.from_pandas(chunk, preserve_index=False)
+    if writer is None:
+        writer = pq.ParquetWriter(DST, table.schema, compression="zstd")
+    writer.write_table(table)
+writer.close()
+```
+
+(Tested on `gpcp_monthly_precipitation.csv`: 184 KB → 33 KB, same rows.) `pyarrow` and `jupyter` are needed for the notebooks and are not in `requirements.txt` yet (Section 11).
+
+### 4.4 Transformations with dbt (SQL on the remote server)
+
+After the Parquet step, **no more pandas**. The Parquet files are loaded as-is into a `raw` schema on the remote server (one table per source), and dbt builds everything else with SQL models:
+
+```
+dbt/
+├── dbt_project.yml
+├── models/
+│   ├── sources.yml          # the raw tables loaded from Parquet
+│   ├── staging/             # stg_*  : cleaning, renaming, data types, name/unit normalization
+│   ├── intermediate/        # int_*  : joins, ENSO-season alignment, detrending
+│   └── marts/               # dim_*, fact_*, analysis views — what Power BI reads
+├── seeds/                   # small mapping tables (country names, item codes, intensity thresholds)
+└── tests/                   # not-null / unique / accepted-values / relationship checks
+```
+
+| Layer | What happens there |
+|---|---|
+| `staging` | Cleaning (Section 8 checklist), casting text columns to real types, harmonizing country names and units, building dates |
+| `intermediate` | Joins between ENSO, rainfall, prices and yields; shifting the ONI 3-month mean to the right month; trend and anomaly calculation |
+| `marts` | Normalized dimensions and facts (`dim_date`, `dim_region`, `dim_crop`, `fact_*`) and the analysis outputs for the five dashboards |
+
+Rules of the workflow:
+- Every transformation after the raw load is a SQL model under version control; nothing is fixed by hand on the server.
+- Credentials live in `~/.dbt/profiles.yml`, never in the repository.
+- Typical commands, from `dbt/`: `dbt debug` (check the connection), `dbt build` (run models + tests), `dbt build --select +fact_food_production` (one model and its parents), `dbt docs generate` (lineage and column docs).
+- The dbt adapter must match the remote server's database engine (see Section 11).
 
 ---
 
@@ -270,7 +335,7 @@ Notes:
 
 ## 6. FAOSTAT QCL Download Specification (one file)
 
-`data/collect_data.py` downloads the full QCL bulk file and unpacks it into `data/Production_Crops_Livestock_E_All_Data_(Normalized)/`; filter it to the selections below in pandas or SQL. To get a pre-filtered CSV instead, download **one** CSV from https://www.fao.org/faostat/en/#data/QCL with the same selections.
+`data/collect_data.py` downloads the full QCL bulk file and unpacks it into `data/Production_Crops_Livestock_E_All_Data_(Normalized)/`; filter it to the selections below in the dbt staging model (SQL), not in a notebook. To get a pre-filtered CSV instead, download **one** CSV from https://www.fao.org/faostat/en/#data/QCL with the same selections.
 
 **Countries (14):**
 Argentina, Australia, Brazil, Egypt, India, Indonesia, Kenya, Malaysia, Peru, Philippines, South Africa, Thailand, United States of America, Viet Nam
@@ -299,7 +364,7 @@ Argentina, Australia, Brazil, Egypt, India, Indonesia, Kenya, Malaysia, Peru, Ph
 
 **Method notes for this dataset**
 1. Analyse **Yield**, not raw Production (production is confounded by area changes and technology).
-2. **Detrend** each country-crop yield series (e.g. linear or LOESS trend) and work with the anomaly (% deviation from trend).
+2. **Detrend** each country-crop yield series with a **linear trend computed in SQL** (per-series slope and intercept, e.g. `regr_slope` / `regr_intercept` as window functions on PostgreSQL) and work with the anomaly (% deviation from trend). LOESS is not available in SQL, so it is dropped unless a notebook-only sensitivity check is added.
 3. Map ENSO to the crop's growing season (e.g. OND–JFM mean ONI for southern-hemisphere summer crops) rather than to the calendar year.
 4. With ~40 annual points per series, compare yield anomalies across **El Niño / La Niña / Neutral years** instead of relying on correlation alone.
 5. QCL is annual: **no monthly lag analysis on yields.** Monthly lags are for rainfall and FAO price indices only.
@@ -308,7 +373,7 @@ Argentina, Australia, Brazil, Egypt, India, Indonesia, Kenya, Malaysia, Peru, Ph
 
 ## 7. Known Statistical Expectations
 
-A first pass on the collected data (monthly, 1990–2026, year-over-year change of the Real FAO sub-indices vs. ONI lagged 0–12 months) shows **weak relationships** — absolute correlations below ~0.4:
+An exploratory first pass on the collected data (monthly, 1990–2026, year-over-year change of the Real FAO sub-indices vs. ONI lagged 0–12 months) shows **weak relationships** — absolute correlations below ~0.4. These numbers are exploratory; the final figures come from the dbt marts (Section 4.4):
 
 | Sub-index | Strongest pattern |
 |---|---|
@@ -325,30 +390,40 @@ The project should present these as "partial, lagged, commodity-specific" effect
 ```
 DATA SOURCES (NOAA + FAO)
         ↓
-   Data Cleaning (Python)
+  Raw download (Python: data/collect_data.py; NetCDF → CSV via xarray for GPCP)
         ↓
-Data Transformation (wide→long, NetCDF → CSV via xarray)
+  Exploration + CSV → Parquet (Jupyter, notebooks/ — no cleaning, no analysis)
         ↓
-   SQL Database
-   (dim_date, dim_region, dim_crop, fact_enso_index, fact_sst_indices,
-    fact_climate, fact_food_price, fact_food_production,
-    fact_food_security_risk — see enso_schema.sql)
+  Load as-is into the `raw` schema on the REMOTE SERVER
         ↓
-  Statistical Analysis (Python, querying the database)
-  (Correlation, Lag Analysis, Anomaly Detection, Detrending, Analog matching)
-        ↓
-   Analytical Dataset / Views
+  dbt (SQL on the server)
+   ├─ staging       : cleaning, data types, name/unit normalization
+   ├─ intermediate  : joins, season alignment, detrending / anomalies
+   └─ marts         : dim_date, dim_region, dim_crop, fact_enso_index, fact_sst_indices,
+                      fact_climate, fact_food_price, fact_food_production,
+                      fact_food_security_risk + analysis views
         ↓
   Power BI Dashboards
 ```
 
 **Toolchain, end to end:**
-1. **Python** — pulls and cleans the raw sources and loads cleaned tables into the SQL database.
-2. **SQL** — all five dashboards query the database rather than reading files directly.
-3. **Python** (again) — statistical analysis on top of the database; writes results back as tables/views.
-4. **Power BI** — connects to the SQL database (or analytical views/exports).
+1. **Python** — downloads the raw sources (`collect_data.py`).
+2. **Jupyter + Parquet** — exploration of each raw file and size reduction only (Section 4.3).
+3. **dbt + SQL on the remote server** — cleaning, data types, normalization and every analysis (Section 4.4).
+4. **Power BI** — connects to the marts/views on the server; the dashboards never read files directly.
 
-**Cleaning checklist**
+**Analysis in SQL** (function names shown for PostgreSQL; adjust to the server's engine):
+
+| Analysis | How it is done in SQL |
+|---|---|
+| ENSO phase classification | Window functions over the ONI series (5 consecutive seasons ≥ +0.5 / ≤ −0.5) |
+| Detrending and yield anomaly | Per country-crop linear trend with `regr_slope` / `regr_intercept` windows → % deviation from trend |
+| Correlation | `corr()` between the ONI and the rainfall / price series |
+| Lag analysis (monthly only) | Join the series to itself on a date shifted by 0–12 months (or `lag()`), then `corr()` per lag |
+| Analog matching (Dashboard 4) | RMSE between the current Jan–Aug ONI path and each past year (`sqrt(avg(power(a - b, 2)))`) |
+| Risk score | Combination of the rainfall and yield anomalies in a mart model |
+
+**Cleaning checklist** (each item is implemented in a dbt staging/intermediate model)
 - **ONI file:** already long and monthly. The 3-month mean is labelled with the season's **first** month, so shift `date` by one month (or label it with the centre month) before joining with monthly rainfall or prices. Treat the last two rows (no 3-month mean) as unknown, not as `neutral`.
 - **FFPI:** headers start at row 5 of the sheets (title rows + blank row); drop trailing empty rows if any (the current file has values up to 2026-08); use `Indices_Monthly_Real` for comparisons over time.
 - **Niño:** combine `YR` + `MON` into a date; keep both raw SST and anomaly.
@@ -368,8 +443,8 @@ Data Transformation (wide→long, NetCDF → CSV via xarray)
 
 | Task | People | Description |
 |---|---|---|
-| Data collection + cleaning + ETL | 2 | ONI, Niño, GPCP (extended to 1982 + new countries), FFPI and QCL; reshaping; missing values and format mismatches |
-| Statistical analysis | 1 | Detrending, anomalies, correlation, lag analysis, analog logic for Dashboard 4, risk score |
+| Data collection + exploration + dbt staging | 2 | Raw files for ONI, Niño, GPCP (extended to 1982 + new countries), FFPI and QCL; exploration notebooks and Parquet conversion; dbt staging models (cleaning, types, normalization, reshaping, missing values and format mismatches) |
+| Statistical analysis (SQL / dbt) | 1 | dbt intermediate and mart models: detrending, anomalies, correlation, lag analysis, analog logic for Dashboard 4, risk score |
 | Dashboard building | 2 | Building the 5 dashboards in Power BI |
 | Documentation + presentation + QA | 1 | README, final report, slide deck, testing dashboard numbers against source data |
 
@@ -381,23 +456,25 @@ Data Transformation (wide→long, NetCDF → CSV via xarray)
 |---|---|
 | `xarray` | Reading and processing NetCDF climate files |
 | `netCDF4` | Low-level NetCDF support (used internally by xarray) |
-| `pandas` | Tabular data cleaning, merging, and analysis |
-| `requests`, `openpyxl`, `netCDF4` | Downloading the sources, reading/writing Excel files, reading NetCDF |
-| `scipy.stats` | Correlation coefficients and lag analysis |
-| `statsmodels` | Detrending (LOESS / linear) and regression checks |
-| SQL database (PostgreSQL or similar) | Central storage for all cleaned data — schema in `enso_schema.sql` |
-| `SQLAlchemy` / `psycopg2` | Loading cleaned DataFrames into the SQL database |
-| Power BI | Final dashboards, connected to the SQL database |
+| `pandas` | Reading raw files in the exploration notebooks and the chunked CSV → Parquet conversion (no cleaning or analysis) |
+| `pyarrow` | Writing Parquet files (to be added to `requirements.txt`) |
+| `jupyter` | Exploration notebooks (to be added to `requirements.txt`) |
+| `requests`, `openpyxl` | Downloading the sources, reading Excel files |
+| Remote SQL server (PostgreSQL or similar) | Hosts the `raw` schema and every model built by dbt |
+| dbt (adapter matching the server) | Runs all cleaning, typing, normalization and analysis as versioned SQL models, with tests and docs |
+| Power BI | Final dashboards, connected to the marts/views on the server |
 
-**Final toolchain: Python (collection + cleaning + analysis) → SQL database (storage) → Power BI (dashboards).**
+**Final toolchain: Python (raw download) → Jupyter + Parquet (exploration and size reduction only) → remote SQL server with dbt (cleaning, types, normalization, analysis) → Power BI (dashboards).**
 
 ---
 
 ## 11. Open Items / Still To Confirm
 
-- Run `data/collect_data.py` once against the live sources and fix anything that breaks (it was tested on local data and synthetic files, not on the live sites).
-- Verify FAOSTAT item codes and the last available year in QCL (likely 2024).
-- Add `sql/enso_schema.sql` to the repository (referenced in Section 8 but not yet committed).
+- Create the `dbt/` project (`dbt_project.yml`, `sources.yml`, staging → intermediate → marts) — replaces the old plan for a hand-written `sql/enso_schema.sql`.
+- Confirm the remote server's database engine, so the right dbt adapter is installed and the SQL functions in Section 8 (`regr_slope`, `corr`, …) are valid on it.
+- Decide how the Parquet files get into the server's `raw` schema (the server's bulk loader or a small loader script); dbt does not load files itself.
+- Add `pyarrow` and `jupyter` (and `dbt-<adapter>`) to the dependencies, and decide whether `data/parquet/` is committed or git-ignored (the FAOSTAT Parquet may still be large).
+- Write the exploration notebooks (`notebooks/`), one per raw source, starting with FAOSTAT QCL.
 - Add Argentina, Thailand, Malaysia, Philippines (and the revised reference points) to the GPCP extract; extend GPCP to 1982.
 - Decide whether to add a temperature source (Berkeley Earth / ERA5) or leave Dashboard 2 rainfall-only.
 - Decide whether the optional Meat/Dairy items (cattle meat, raw milk) are included.
