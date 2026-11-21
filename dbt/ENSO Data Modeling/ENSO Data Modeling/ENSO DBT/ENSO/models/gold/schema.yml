@@ -1,0 +1,266 @@
+version: 2
+
+models:
+  - name: dim_intensity
+    columns:
+      - name: intensity_id
+        data_tests:
+          - unique
+          - not_null
+  - name: dim_enso_phase
+    columns:
+      - name: phase_id
+        data_tests:
+          - unique
+          - not_null
+      - name: phase_code
+        data_tests:
+          - unique
+          - not_null
+  - name: dim_area
+    columns:
+      - name: area_code
+        data_tests:
+          - unique
+          - not_null
+  - name: dim_flag
+    columns:
+      - name: flag_code
+        data_tests:
+          - unique
+          - not_null
+  - name: dim_element
+    columns:
+      - name: element_code
+        data_tests:
+          - unique
+          - not_null
+  - name: dim_food_index
+    columns:
+      - name: food_index_id
+        data_tests:
+          - unique
+          - not_null
+      - name: index_code
+        data_tests:
+          - unique
+          - not_null
+  - name: dim_item
+    columns:
+      - name: item_code
+        data_tests:
+          - unique
+          - not_null
+      - name: food_index_id
+        data_tests:
+          - relationships: {arguments: {to: ref('dim_food_index'), field: food_index_id}}
+  - name: dim_location
+    columns:
+      - name: location_id
+        data_tests:
+          - unique
+          - not_null
+      - name: area_code
+        data_tests:
+          - relationships: {arguments: {to: ref('dim_area'), field: area_code}}
+  - name: dim_nino_region
+    columns:
+      - name: region_id
+        data_tests:
+          - unique
+          - not_null
+      - name: region_code
+        data_tests:
+          - unique
+          - not_null
+  - name: dim_year
+    columns:
+      - name: year_num
+        data_tests:
+          - unique
+          - not_null
+  - name: dim_date
+    columns:
+      - name: date_key
+        data_tests:
+          - unique
+          - not_null
+      - name: year_num
+        data_tests:
+          - not_null
+          - relationships: {arguments: {to: ref('dim_year'), field: year_num}}
+  - name: dim_enso_event
+    columns:
+      - name: event_id
+        data_tests:
+          - unique
+          - not_null
+      - name: phase_id
+        data_tests:
+          - not_null
+          - relationships: {arguments: {to: ref('dim_enso_phase'), field: phase_id}}
+      - name: start_date_key
+        data_tests:
+          - not_null
+          - relationships: {arguments: {to: ref('dim_date'), field: date_key}}
+      - name: end_date_key
+        data_tests:
+          - not_null
+          - relationships: {arguments: {to: ref('dim_date'), field: date_key}}
+      - name: intensity_id
+        data_tests:
+          - not_null
+          - relationships: {arguments: {to: ref('dim_intensity'), field: intensity_id}}
+  - name: fact_enso_monthly
+    columns:
+      - name: date_key
+        data_tests:
+          - unique
+          - not_null
+          - relationships: {arguments: {to: ref('dim_date'), field: date_key}}
+      - name: phase_3m_id
+        data_tests:
+          - not_null
+          - relationships: {arguments: {to: ref('dim_enso_phase'), field: phase_id}}
+      - name: phase_event_id
+        data_tests:
+          - not_null
+          - relationships: {arguments: {to: ref('dim_enso_phase'), field: phase_id}}
+      - name: intensity_id
+        data_tests:
+          - relationships: {arguments: {to: ref('dim_intensity'), field: intensity_id}}
+      - name: event_id
+        data_tests:
+          - relationships: {arguments: {to: ref('dim_enso_event'), field: event_id}}
+  - name: fact_crop_production
+    columns:
+      - name: area_code
+        data_tests:
+          - not_null
+          - relationships: {arguments: {to: ref('dim_area'), field: area_code}}
+      - name: item_code
+        data_tests:
+          - not_null
+          - relationships: {arguments: {to: ref('dim_item'), field: item_code}}
+      - name: element_code
+        data_tests:
+          - not_null
+          - relationships: {arguments: {to: ref('dim_element'), field: element_code}}
+      - name: year_num
+        data_tests:
+          - not_null
+          - relationships: {arguments: {to: ref('dim_year'), field: year_num}}
+      - name: flag_code
+        data_tests:
+          - relationships: {arguments: {to: ref('dim_flag'), field: flag_code}}
+  - name: fact_precipitation
+    columns:
+      - name: date_key
+        data_tests:
+          - not_null
+          - relationships: {arguments: {to: ref('dim_date'), field: date_key}}
+      - name: location_id
+        data_tests:
+          - not_null
+          - relationships: {arguments: {to: ref('dim_location'), field: location_id}}
+  - name: fact_food_price_monthly
+    columns:
+      - name: date_key
+        data_tests:
+          - not_null
+          - relationships: {arguments: {to: ref('dim_date'), field: date_key}}
+      - name: food_index_id
+        data_tests:
+          - not_null
+          - relationships: {arguments: {to: ref('dim_food_index'), field: food_index_id}}
+  - name: fact_food_price_annual
+    columns:
+      - name: year_num
+        data_tests:
+          - not_null
+          - relationships: {arguments: {to: ref('dim_year'), field: year_num}}
+      - name: food_index_id
+        data_tests:
+          - not_null
+          - relationships: {arguments: {to: ref('dim_food_index'), field: food_index_id}}
+  - name: fact_nino_region_sst
+    columns:
+      - name: date_key
+        data_tests:
+          - not_null
+          - relationships: {arguments: {to: ref('dim_date'), field: date_key}}
+      - name: region_id
+        data_tests:
+          - not_null
+          - relationships: {arguments: {to: ref('dim_nino_region'), field: region_id}}
+  - name: fact_yield_anomaly
+    columns:
+      - name: area_code
+        data_tests:
+          - not_null
+          - relationships: {arguments: {to: ref('dim_area'), field: area_code}}
+      - name: item_code
+        data_tests:
+          - not_null
+          - relationships: {arguments: {to: ref('dim_item'), field: item_code}}
+      - name: year_num
+        data_tests:
+          - not_null
+          - relationships: {arguments: {to: ref('dim_year'), field: year_num}}
+      - name: flag_code
+        data_tests:
+          - relationships: {arguments: {to: ref('dim_flag'), field: flag_code}}
+  - name: fact_enso_year
+    columns:
+      - name: year_num
+        data_tests:
+          - unique
+          - not_null
+          - relationships: {arguments: {to: ref('dim_year'), field: year_num}}
+      - name: year_phase_id
+        data_tests:
+          - not_null
+          - relationships: {arguments: {to: ref('dim_enso_phase'), field: phase_id}}
+      - name: intensity_id
+        data_tests:
+          - relationships: {arguments: {to: ref('dim_intensity'), field: intensity_id}}
+  - name: fact_yield_sensitivity
+    columns:
+      - name: area_code
+        data_tests:
+          - not_null
+          - relationships: {arguments: {to: ref('dim_area'), field: area_code}}
+      - name: item_code
+        data_tests:
+          - not_null
+          - relationships: {arguments: {to: ref('dim_item'), field: item_code}}
+  - name: fact_precip_anomaly
+    columns:
+      - name: date_key
+        data_tests:
+          - not_null
+          - relationships: {arguments: {to: ref('dim_date'), field: date_key}}
+      - name: location_id
+        data_tests:
+          - not_null
+          - relationships: {arguments: {to: ref('dim_location'), field: location_id}}
+  - name: fact_food_price_yoy
+    columns:
+      - name: date_key
+        data_tests:
+          - not_null
+          - relationships: {arguments: {to: ref('dim_date'), field: date_key}}
+      - name: food_index_id
+        data_tests:
+          - not_null
+          - relationships: {arguments: {to: ref('dim_food_index'), field: food_index_id}}
+  - name: fact_food_security_risk
+    columns:
+      - name: area_code
+        data_tests:
+          - unique
+          - not_null
+          - relationships: {arguments: {to: ref('dim_area'), field: area_code}}
+      - name: location_id
+        data_tests:
+          - relationships: {arguments: {to: ref('dim_location'), field: location_id}}
