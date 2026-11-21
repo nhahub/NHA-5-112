@@ -1,0 +1,49 @@
+version: 2
+
+models:
+  - name: brz_fao_production
+    columns:
+      - name: area_code
+        data_tests: [not_null]
+      - name: item_code
+        data_tests: [not_null]
+      - name: element_code
+        data_tests: [not_null]
+      - name: year
+        data_tests: [not_null]
+  - name: brz_fao_areas
+    columns:
+      - name: area_code
+        data_tests: [unique, not_null]
+  - name: brz_fao_items
+    columns:
+      - name: item_code_text
+        data_tests: [unique, not_null]
+  - name: brz_fao_elements
+    columns:
+      - name: element_code
+        data_tests: [unique, not_null]
+  - name: brz_fao_flags
+    columns:
+      - name: flag
+        data_tests: [unique, not_null]
+  - name: brz_enso_events
+    columns:
+      - name: month_date
+        data_tests: [unique, not_null]
+  - name: brz_nino_regions
+    columns:
+      - name: yr
+        data_tests: [not_null]
+      - name: mon
+        data_tests: [not_null]
+  - name: brz_gpcp_precipitation
+    columns:
+      - name: month_date
+        data_tests: [not_null]
+      - name: gpcp_region
+        data_tests: [not_null]
+  - name: brz_ffpi_monthly
+    columns:
+      - name: month_date
+        data_tests: [unique, not_null]

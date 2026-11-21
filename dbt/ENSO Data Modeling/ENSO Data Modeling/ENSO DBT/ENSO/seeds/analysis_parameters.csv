@@ -1,0 +1,8 @@
+param_name,param_value
+analysis_start_year,1982
+analysis_end_year,2024
+min_years_per_group,5
+sensitive_threshold_pct,-3
+max_missing_share,0.10
+max_zero_share,0.05
+max_gap_years,3

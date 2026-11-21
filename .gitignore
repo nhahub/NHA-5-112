@@ -8,3 +8,7 @@ data/Production_Crops_Livestock_E_All_Data_(Normalized)/
 .venv/
 __pycache__/
 *.pyc
+dbt/**/target/
+dbt/**/logs/
+dbt/**/dbt_packages/
+*.log

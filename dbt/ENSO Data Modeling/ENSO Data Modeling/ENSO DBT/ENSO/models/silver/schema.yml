@@ -1,0 +1,90 @@
+version: 2
+
+models:
+  - name: slv_area
+    columns:
+      - name: area_code
+        data_tests: [unique, not_null]
+  - name: slv_item
+    columns:
+      - name: item_code
+        data_tests: [unique, not_null]
+  - name: slv_element
+    columns:
+      - name: element_code
+        data_tests: [unique, not_null]
+  - name: slv_flag
+    columns:
+      - name: flag
+        data_tests: [unique, not_null]
+  - name: slv_crop_production
+    columns:
+      - name: area_code
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('slv_area')
+                field: area_code
+      - name: item_code
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('slv_item')
+                field: item_code
+      - name: element_code
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('slv_element')
+                field: element_code
+      - name: year_num
+        data_tests: [not_null]
+      - name: flag_code
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('slv_flag')
+                field: flag
+  - name: slv_enso_monthly
+    columns:
+      - name: date_key
+        data_tests: [unique, not_null]
+      - name: phase_event_code
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['elnino', 'lanina', 'neutral', 'unknown']
+      - name: phase_3m_code
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['elnino', 'lanina', 'neutral', 'unknown']
+  - name: slv_oni_centered
+    columns:
+      - name: date_key
+        data_tests: [unique, not_null]
+  - name: slv_precipitation
+    columns:
+      - name: date_key
+        data_tests: [not_null]
+      - name: location_id
+        data_tests: [not_null]
+      - name: area_code
+        data_tests: [not_null]
+  - name: slv_food_price_monthly
+    columns:
+      - name: date_key
+        data_tests: [not_null]
+      - name: index_code
+        data_tests: [not_null]
+  - name: slv_series_quality
+    columns:
+      - name: passes_quality
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [0, 1]
+                quote: false

@@ -1,0 +1,5 @@
+# Ignore Venv folder
+ENSO-VENV/
+
+# Ignore log files
+logs/

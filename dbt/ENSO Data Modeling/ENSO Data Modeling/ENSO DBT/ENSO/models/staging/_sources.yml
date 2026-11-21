@@ -1,0 +1,243 @@
+version: 2
+
+sources:
+  - name: staging
+    description: >
+      Raw staging tables loaded from local CSV files into SQL Server (ENSO_DB.staging)
+      via load_staging.py. All columns are stored as NVARCHAR(400) with audit metadata
+      (_loaded_at, _source_file) for downstream dbt transformations.
+    database: "{{ env_var('DBT_SQLSERVER_DATABASE', 'ENSO_DB') }}"
+    schema: staging
+
+    tables:
+      - name: fao_production
+        description: "Normalized FAOSTAT crops and livestock production statistics."
+        columns:
+          - name: area_code
+            description: "FAOSTAT country or area identifier."
+            tests:
+              - not_null
+          - name: area_code_m49
+            description: "UN M49 standard area code."
+          - name: area_name
+            description: "Country or geographic area name."
+          - name: item_code
+            description: "FAOSTAT commodity/item identifier."
+            tests:
+              - not_null
+          - name: item_code_cpc
+            description: "Central Product Classification (CPC) code."
+          - name: item_name
+            description: "Crop or livestock product name."
+          - name: element_code
+            description: "FAOSTAT measurement element code (e.g., Area harvested, Yield, Production)."
+            tests:
+              - not_null
+          - name: element_name
+            description: "Measurement element description."
+          - name: year_code
+            description: "FAOSTAT year code."
+            tests:
+              - not_null
+          - name: year
+            description: "Calendar year of observation."
+          - name: unit
+            description: "Unit of measurement (e.g., ha, tonnes, hg/ha)."
+          - name: value
+            description: "Reported numeric observation value (stored as text in staging)."
+          - name: flag
+            description: "Data quality/status flag code referencing fao_flags."
+          - name: note
+            description: "Additional footnotes or remarks."
+          - name: _loaded_at
+            description: "Timestamp when the row was ingested into staging."
+            tests:
+              - not_null
+          - name: _source_file
+            description: "Source CSV filename."
+
+      - name: fao_areas
+        description: "Lookup table mapping FAOSTAT area codes to M49 codes and area names."
+        columns:
+          - name: area_code
+            description: "Primary FAOSTAT country/area code."
+            tests:
+              - unique
+              - not_null
+          - name: m49_code
+            description: "UN M49 standard area code."
+          - name: area_name
+            description: "Official area or country name."
+          - name: _loaded_at
+            description: "Timestamp when the row was ingested into staging."
+          - name: _source_file
+            description: "Source CSV filename."
+
+      - name: fao_items
+        description: "Lookup table mapping FAOSTAT item codes to CPC codes and item names."
+        columns:
+          - name: item_code
+            description: "Primary FAOSTAT crop/livestock item code."
+            tests:
+              - unique
+              - not_null
+          - name: cpc_code
+            description: "Central Product Classification (CPC) code."
+          - name: item_name
+            description: "Crop or livestock commodity name."
+          - name: _loaded_at
+            description: "Timestamp when the row was ingested into staging."
+          - name: _source_file
+            description: "Source CSV filename."
+
+      - name: fao_elements
+        description: "Lookup table defining FAOSTAT statistical measurement elements."
+        columns:
+          - name: element_code
+            description: "Primary FAOSTAT element code."
+            tests:
+              - unique
+              - not_null
+          - name: element_name
+            description: "Element name (e.g., Production, Yield, Area harvested)."
+          - name: _loaded_at
+            description: "Timestamp when the row was ingested into staging."
+          - name: _source_file
+            description: "Source CSV filename."
+
+      - name: fao_flags
+        description: "Lookup table defining FAOSTAT data quality and estimation flags."
+        columns:
+          - name: flag
+            description: "Single-character or short flag code."
+            tests:
+              - unique
+              - not_null
+          - name: description
+            description: "Human-readable explanation of the flag."
+          - name: _loaded_at
+            description: "Timestamp when the row was ingested into staging."
+          - name: _source_file
+            description: "Source CSV filename."
+
+      - name: enso_events
+        description: "Oceanic Nino Index (ONI) and ENSO phase classification events by month."
+        columns:
+          - name: month_date
+            description: "Observation month date."
+            tests:
+              - unique
+              - not_null
+          - name: total_sst
+            description: "Total Sea Surface Temperature (SST)."
+          - name: clim_adjust
+            description: "Climatological adjustment baseline."
+          - name: anom
+            description: "Monthly SST anomaly."
+          - name: anom_trimester
+            description: "3-month running mean SST anomaly (ONI)."
+          - name: anom_trimester_round
+            description: "Rounded 3-month running mean SST anomaly."
+          - name: phase_trimester
+            description: "ENSO phase classification for the trimester."
+          - name: phase_event
+            description: "Official El Nino / La Nina / Neutral event classification."
+          - name: _loaded_at
+            description: "Timestamp when the row was ingested into staging."
+          - name: _source_file
+            description: "Source CSV filename."
+
+      - name: nino_regions
+        description: "Monthly SST and anomaly indices across Nino 1+2, Nino 3, Nino 4, and Nino 3.4 regions."
+        columns:
+          - name: yr
+            description: "Observation year."
+            tests:
+              - not_null
+          - name: mon
+            description: "Observation month (1-12)."
+            tests:
+              - not_null
+          - name: nino12
+            description: "Nino 1+2 region SST."
+          - name: nino12_anom
+            description: "Nino 1+2 region SST anomaly."
+          - name: nino3
+            description: "Nino 3 region SST."
+          - name: nino3_anom
+            description: "Nino 3 region SST anomaly."
+          - name: nino4
+            description: "Nino 4 region SST."
+          - name: nino4_anom
+            description: "Nino 4 region SST anomaly."
+          - name: nino34
+            description: "Nino 3.4 region SST."
+          - name: nino34_anom
+            description: "Nino 3.4 region SST anomaly."
+          - name: _loaded_at
+            description: "Timestamp when the row was ingested into staging."
+          - name: _source_file
+            description: "Source CSV filename."
+
+      - name: gpcp_precipitation
+        description: "GPCP monthly gridded precipitation data (mm/day) mapped to countries."
+        columns:
+          - name: month_date
+            description: "Observation month date."
+            tests:
+              - not_null
+          - name: country
+            description: "Country name."
+            tests:
+              - not_null
+          - name: original_lat
+            description: "Original station/target latitude."
+          - name: original_lon
+            description: "Original station/target longitude."
+          - name: grid_lat
+            description: "GPCP grid cell latitude."
+          - name: grid_lon
+            description: "GPCP grid cell longitude."
+          - name: precipitation_mm_per_day
+            description: "Average daily precipitation rate in millimeters per day."
+          - name: _loaded_at
+            description: "Timestamp when the row was ingested into staging."
+          - name: _source_file
+            description: "Source CSV filename."
+
+      - name: ffpi_monthly
+        description: "FAO Food Price Index (FFPI) monthly nominal and real indices across commodity groups."
+        columns:
+          - name: month_date
+            description: "Observation month date (YYYY-MM-DD)."
+            tests:
+              - unique
+              - not_null
+          - name: ffpi
+            description: "Overall nominal Food Price Index."
+          - name: meat
+            description: "Nominal Meat Price Index."
+          - name: dairy
+            description: "Nominal Dairy Price Index."
+          - name: cereals
+            description: "Nominal Cereals Price Index."
+          - name: oils
+            description: "Nominal Vegetable Oils Price Index."
+          - name: sugar
+            description: "Nominal Sugar Price Index."
+          - name: ffpi_real
+            description: "Deflated (real) overall Food Price Index."
+          - name: meat_real
+            description: "Deflated (real) Meat Price Index."
+          - name: dairy_real
+            description: "Deflated (real) Dairy Price Index."
+          - name: cereals_real
+            description: "Deflated (real) Cereals Price Index."
+          - name: oils_real
+            description: "Deflated (real) Vegetable Oils Price Index."
+          - name: sugar_real
+            description: "Deflated (real) Sugar Price Index."
+          - name: _loaded_at
+            description: "Timestamp when the row was ingested into staging."
+          - name: _source_file
+            description: "Source CSV filename."

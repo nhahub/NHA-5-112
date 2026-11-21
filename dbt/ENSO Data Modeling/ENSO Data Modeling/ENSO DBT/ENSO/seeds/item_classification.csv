@@ -1,0 +1,10 @@
+fao_item_code,item_label,is_primary_crop,food_index_code
+15,Wheat,1,CEREALS
+27,Rice,1,CEREALS
+56,Maize (corn),1,CEREALS
+236,Soya beans,1,OILS
+254,Oil palm fruit,1,OILS
+257,Palm oil,0,OILS
+156,Sugar cane,1,SUGAR
+867,Meat of cattle with the bone; fresh or chilled,0,MEAT
+882,Raw milk of cattle,0,DAIRY
