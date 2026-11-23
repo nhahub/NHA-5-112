@@ -1,0 +1,5 @@
+region_id,region_code,region_name,lat_min,lat_max,lon_min_east,lon_max_east
+1,NINO1+2,Nino 1+2,-10,0,270,280
+2,NINO3,Nino 3,-5,5,210,270
+3,NINO4,Nino 4,-5,5,160,210
+4,NINO3.4,Nino 3.4,-5,5,190,240

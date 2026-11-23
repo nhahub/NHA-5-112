@@ -1,0 +1,5 @@
+phase_id,phase_code,phase_name
+1,elnino,El Nino
+2,lanina,La Nina
+3,neutral,Neutral
+4,unknown,Unknown

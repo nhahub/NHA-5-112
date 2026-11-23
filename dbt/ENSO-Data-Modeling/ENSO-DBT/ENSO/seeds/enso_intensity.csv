@@ -1,0 +1,6 @@
+intensity_id,label,min_abs_anom,max_abs_anom
+1,None,0.0,0.5
+2,Weak,0.5,1.0
+3,Moderate,1.0,1.5
+4,Strong,1.5,2.0
+5,Very strong,2.0,

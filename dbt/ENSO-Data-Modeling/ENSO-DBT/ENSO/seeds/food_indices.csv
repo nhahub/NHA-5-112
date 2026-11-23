@@ -1,0 +1,7 @@
+food_index_id,index_code,index_name,is_headline
+1,FFPI,FAO Food Price Index,1
+2,MEAT,Meat Price Index,0
+3,DAIRY,Dairy Price Index,0
+4,CEREALS,Cereals Price Index,0
+5,OILS,Vegetable Oils Price Index,0
+6,SUGAR,Sugar Price Index,0
