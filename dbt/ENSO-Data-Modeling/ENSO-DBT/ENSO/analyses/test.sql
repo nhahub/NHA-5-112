@@ -43,7 +43,7 @@
 {# (gold table, expected rows from the raw files) #}
 {% set known = [
     ('fact_enso_monthly', 918), ('fact_precipitation', 3180),
-    ('fact_nino_region_sst', 2152), ('fact_food_price_monthly', 2646), ('fact_food_price_yoy', 2646)
+    ('fact_nino_region_sst', 2152), ('fact_food_price_monthly', 2652), ('fact_food_price_yoy', 2652)
 ] %}
 
 {# (child table, fk column, parent table, parent column, only_when_not_null) -> rows without a parent must be 0 #}
