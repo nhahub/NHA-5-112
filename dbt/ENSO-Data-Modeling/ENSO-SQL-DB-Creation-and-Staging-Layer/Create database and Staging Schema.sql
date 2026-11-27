@@ -15,3 +15,8 @@ GO
 
 SELECT name AS schema_name FROM sys.schemas WHERE name IN ('staging');
 GO
+-- ============================================================
+-- Login creation for local development
+
+CREATE LOGIN enso_dev WITH PASSWORD = 'Enso#Local2026', CHECK_POLICY = OFF;
+ALTER SERVER ROLE sysadmin ADD MEMBER enso_dev;
